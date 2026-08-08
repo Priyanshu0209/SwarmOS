@@ -12,33 +12,24 @@ By decoupling the high-level decision-making processes, swarm communication, and
 
 SwarmOS utilizes a clear separation of concerns, routing human or autonomous commands through a network layer, into a safety-checked OS environment, and finally to the flight controller.
 
-```text
-Human / Operator
-       │
-       ▼
-Ground Station / DroneAgent
-       │
-       ▼
-Communication Layer (UDP / JSON)
-       │
-       ▼
-DroneOS
-       │
-       ├── Command Handler
-       ├── Safety Layer
-       ├── Mission Manager
-       ├── Flight Manager
-       ├── Telemetry Publisher
-       └── Swarm Manager
-       │
-       ▼
-PX4 / MAVSDK Adapter
-       │
-       ▼
-Pixhawk Flight Controller
-       │
-       ▼
-Physical Drone
+```mermaid
+graph TD
+    User([Human / Operator]) -->|UI Inputs| GS[Ground Station / DroneAgent]
+    GS -->|Control & Mission JSON| Net[Communication Layer UDP]
+    Net -->|Network Packets| DOS[DroneOS]
+
+    subgraph DroneOS Subsystems
+        DOS --> CH[Command Handler]
+        CH --> SL[Safety Layer]
+        SL --> FM[Flight Manager]
+        SL --> MM[Mission Manager]
+        DOS --> SM[Swarm Manager]
+        DOS --> TP[Telemetry Publisher]
+    end
+
+    FM -->|Flight Commands| PA[PX4 / MAVSDK Adapter]
+    PA -->|MAVLink| FC[Pixhawk Flight Controller]
+    FC --> Drone([Physical Drone])
 ```
 
 ## 3. Repository Structure
@@ -100,26 +91,24 @@ SwarmOS uses the **Adapter Pattern** to interface with flight controllers. The p
 
 Commands flow through a strict, serialized pipeline ensuring that only valid, safe actions reach the hardware.
 
-```text
-GroundStation
-    ↓
-ControlMessage (e.g., CommandAction.ARM)
-    ↓
-JsonSerializer
-    ↓
-UDP Network
-    ↓
-DroneOS (Command Handler)
-    ↓
-Safety Validation (e.g., connection alive, battery OK)
-    ↓
-FlightManager
-    ↓
-PX4Adapter
-    ↓
-MAVSDK
-    ↓
-Pixhawk
+```mermaid
+sequenceDiagram
+    participant GS as GroundStation
+    participant Net as UDP Network
+    participant CH as CommandHandler
+    participant SL as Safety Validation
+    participant FM as FlightManager
+    participant PX4 as PX4Adapter
+    participant HW as Pixhawk (Hardware)
+
+    GS->>Net: Serialize ControlMessage (e.g. ARM)
+    Net->>CH: Deserialize Message
+    CH->>SL: Validate (Connection Alive, Battery OK)
+    SL-->>CH: Status: Safe
+    CH->>FM: Execute Command
+    FM->>PX4: Adapter Command (e.g. arm())
+    PX4->>HW: MAVLink Command
+    HW-->>PX4: Acknowledge (ActionError if fails)
 ```
 
 **Supported Commands**: `ARM`, `DISARM`, `TAKEOFF`, `LAND`, `RTL`, `HOVER`, `MOVE`, `FORMATION_UPDATE`.
@@ -171,6 +160,19 @@ SwarmOS supports an advanced distributed mission workflow via specific message t
 - **Mission Start/Stop/Pause/Resume**: Operators can control execution states dynamically.
 - **Mission Status**: Drones report mission progress (current waypoint, percent complete).
 - **Mission Management**: Operators can Abort, Delete, Duplicate, or Clear missions.
+
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE
+    IDLE --> UPLOADED : Mission Upload
+    UPLOADED --> RUNNING : Mission Start
+    RUNNING --> PAUSED : Mission Pause
+    PAUSED --> RUNNING : Mission Resume
+    RUNNING --> ABORTED : Mission Abort / Emergency
+    RUNNING --> COMPLETED : All Waypoints Reached
+    ABORTED --> IDLE : Clear
+    COMPLETED --> IDLE : Clear
+```
 
 *Note: Uploading a mission does not automatically arm or takeoff the drone. Operators must issue explicit ARM and TAKEOFF commands prior to mission execution.*
 
@@ -321,7 +323,7 @@ SwarmOS contains testing suites for both major components:
 
 ## 26. License
 
-License: Not yet specified.
+Distributed under the MIT License. See `LICENSE` for more information.
 
 ## 27. Author / Repository
 
