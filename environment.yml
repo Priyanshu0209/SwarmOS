@@ -1,0 +1,15 @@
+name: base
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.10
+  - pip
+  - pip:
+      - pydantic>=2.7.0
+      - pydantic-settings>=2.0.0
+      - pyyaml>=6.0
+      - msgpack-rpc-python>=0.4.1
+      - PySide6>=6.11.1
+      - qasync>=0.23.0
+      - mavsdk
