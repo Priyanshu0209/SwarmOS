@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, 
-    QGroupBox, QSlider, QGridLayout, QTextEdit
+    QGroupBox, QSlider, QGridLayout, QTextEdit, QComboBox
 )
 from PySide6.QtCore import Qt
 from GroundStation.shared.protocol.messages import CommandAction
@@ -33,7 +33,18 @@ class FlightControlPanel(QWidget):
         
         btn_arm = QPushButton("ARM")
         btn_disarm = QPushButton("DISARM")
+        
+        takeoff_widget = QWidget()
+        takeoff_layout = QHBoxLayout(takeoff_widget)
+        takeoff_layout.setContentsMargins(0, 0, 0, 0)
         btn_takeoff = QPushButton("TAKEOFF")
+        self.combo_takeoff_alt = QComboBox()
+        self.combo_takeoff_alt.addItems([f"{i} m" for i in range(1, 11)])
+        self.combo_takeoff_alt.setCurrentText("5 m")
+        self.combo_takeoff_alt.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        takeoff_layout.addWidget(btn_takeoff)
+        takeoff_layout.addWidget(self.combo_takeoff_alt)
+        
         btn_land = QPushButton("LAND")
         btn_rtl = QPushButton("RTL")
         btn_hover = QPushButton("HOVER")
@@ -49,7 +60,7 @@ class FlightControlPanel(QWidget):
 
         btn_arm.clicked.connect(lambda: self.send_action(CommandAction.ARM))
         btn_disarm.clicked.connect(lambda: self.send_action(CommandAction.DISARM))
-        btn_takeoff.clicked.connect(lambda: self.send_action(CommandAction.TAKEOFF))
+        btn_takeoff.clicked.connect(self._on_takeoff)
         btn_land.clicked.connect(lambda: self.send_action(CommandAction.LAND))
         btn_rtl.clicked.connect(lambda: self.send_action(CommandAction.RTL))
         btn_hover.clicked.connect(lambda: self.send_action(CommandAction.HOVER))
@@ -57,7 +68,7 @@ class FlightControlPanel(QWidget):
 
         ctrl_layout.addWidget(btn_arm, 0, 0)
         ctrl_layout.addWidget(btn_disarm, 0, 1)
-        ctrl_layout.addWidget(btn_takeoff, 1, 0)
+        ctrl_layout.addWidget(takeoff_widget, 1, 0)
         ctrl_layout.addWidget(btn_land, 1, 1)
         ctrl_layout.addWidget(btn_rtl, 2, 0)
         ctrl_layout.addWidget(btn_hover, 2, 1)
@@ -218,7 +229,12 @@ class FlightControlPanel(QWidget):
             self.cmd_history.pop()
         self.txt_log.setPlainText("\n".join(self.cmd_history))
 
-    def send_action(self, action: CommandAction):
+    def _on_takeoff(self):
+        alt_str = self.combo_takeoff_alt.currentText().replace(" m", "")
+        params = {"altitude_m": float(alt_str)}
+        self.send_action(CommandAction.TAKEOFF, params=params)
+
+    def send_action(self, action: CommandAction, params=None):
         import asyncio
         target = self.get_active_drone()
         t_str = target if target and target != "ALL" else "ALL"
@@ -228,7 +244,7 @@ class FlightControlPanel(QWidget):
             target = None
             
         async def _dispatch():
-            await self.network.send_command(target, action)
+            await self.network.send_command(target, action, params=params)
             
         if not hasattr(self, '_active_tasks'):
             self._active_tasks = set()

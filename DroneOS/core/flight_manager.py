@@ -30,7 +30,19 @@ class FlightManager:
             logger.error("Cannot takeoff: Drone telemetry indicates it is not ARMED.")
             return False
             
-        altitude = params.get('altitude', 10.0) if params else 10.0
+        altitude = 5.0
+        if params and 'altitude_m' in params:
+            try:
+                parsed = float(params['altitude_m'])
+                if 1.0 <= parsed <= 10.0:
+                    altitude = parsed
+                else:
+                    logger.error(f"Cannot takeoff: Altitude {parsed} is out of bounds (1.0 - 10.0m)")
+                    return False
+            except (ValueError, TypeError):
+                logger.error("Cannot takeoff: Invalid altitude parameter format.")
+                return False
+                
         success = await self.fc.takeoff(altitude)
         if success:
             logger.info(f"Takeoff command accepted to {altitude}m.")

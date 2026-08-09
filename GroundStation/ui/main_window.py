@@ -300,6 +300,13 @@ class GSMainWindow(QMainWindow):
             else:
                 self.conn_label.setStyleSheet("color: green; font-weight: bold;")
                 
+            try:
+                self.telemetry_panel_mission.update_heartbeat(status)
+                self.flight_control_panel.telemetry_panel.update_heartbeat(status)
+            except Exception as e:
+                import logging
+                logging.error(f"UI Error updating heartbeat panels: {e}")
+                
     def _on_telemetry_updated_ui(self, drone_id: str, telemetry_data):
         import time
         if self.active_drone_id == drone_id or self.active_drone_id == "ALL":

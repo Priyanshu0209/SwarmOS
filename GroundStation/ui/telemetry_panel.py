@@ -21,10 +21,11 @@ class TelemetryPanel(QWidget):
         self.lbl_mode = QLabel("UNKNOWN")
         self.lbl_armed = QLabel("UNKNOWN")
         self.lbl_mission = QLabel("IDLE")
+        self.lbl_heartbeat = QLabel("UNKNOWN")
         
         self.labels = [
             self.lbl_battery, self.lbl_altitude, self.lbl_gps, self.lbl_velocity, 
-            self.lbl_heading, self.lbl_attitude, self.lbl_mode, self.lbl_armed, self.lbl_mission
+            self.lbl_heading, self.lbl_attitude, self.lbl_mode, self.lbl_armed, self.lbl_mission, self.lbl_heartbeat
         ]
         
         for lbl in self.labels:
@@ -40,6 +41,14 @@ class TelemetryPanel(QWidget):
         self.layout.addRow("Flight Mode:", self.lbl_mode)
         self.layout.addRow("Armed State:", self.lbl_armed)
         self.layout.addRow("Mission State:", self.lbl_mission)
+        self.layout.addRow("Heartbeat:", self.lbl_heartbeat)
+
+    def update_heartbeat(self, status: str):
+        self.lbl_heartbeat.setText(status.upper())
+        if "LOST" in status.upper():
+            self.lbl_heartbeat.setStyleSheet("color: red;")
+        else:
+            self.lbl_heartbeat.setStyleSheet("color: #00FF00;")
 
     def update_telemetry(self, telemetry_data):
         try:
