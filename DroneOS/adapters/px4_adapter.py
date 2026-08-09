@@ -62,12 +62,6 @@ class PX4FlightController(IFlightController):
                 else:
                     logger.info("Waiting for Pixhawk USB device...")
                     await asyncio.sleep(2.0)
-        elif conn_str.startswith("serial://"):
-            # Explicit hardware endpoint (e.g. serial:///dev/ttyAMA10:115200)
-            device_path = conn_str.replace("serial://", "").split(":")[0]
-            if not os.path.exists(device_path):
-                logger.error(f"Cannot connect to PX4: UART endpoint {device_path} does not exist. Check hardware connection or permissions.")
-                return False
         
         logger.info(f"Connecting to PX4 via {conn_str}...")
         await self.client.connect(system_address=conn_str)
