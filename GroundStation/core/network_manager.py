@@ -130,7 +130,7 @@ class GSNetworkManager:
             
     def _handle_mission_status(self, msg: MissionStatusMessage) -> None:
         if self.on_mission_status:
-            self.on_mission_status(msg.state, msg.mission_id)
+            self.on_mission_status(msg.status, msg.mission_id)
 
     def _handle_heartbeat(self, msg: HeartbeatMessage) -> None:
         if msg.sender_id != self.gs_id:
