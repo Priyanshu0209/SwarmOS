@@ -74,6 +74,16 @@ class PX4FlightController(IFlightController):
                 
         self._connected = True
         
+        # Request required MAVLink telemetry streams at ~5 Hz
+        try:
+            await self.client.telemetry.set_rate_position(5.0)
+            await self.client.telemetry.set_rate_gps_info(5.0)
+            await self.client.telemetry.set_rate_battery(1.0)
+            await self.client.telemetry.set_rate_attitude(5.0)
+            logger.info("MAVLink stream intervals (GPS, Position, etc.) set successfully at 5Hz.")
+        except Exception as e:
+            logger.warning(f"Failed to set MAVLink telemetry rates: {e}")
+        
         # Start background telemetry subscriptions
         t1 = asyncio.create_task(self._subscribe_position())
         t2 = asyncio.create_task(self._subscribe_velocity())
