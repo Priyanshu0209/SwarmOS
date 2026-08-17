@@ -85,7 +85,7 @@ class DroneOSApp:
         self.flight_manager = FlightManager(self.flight_controller)
         
         self.safety_module = SafetyModule(self.flight_controller)
-        self.health_monitor = HealthMonitor()
+        self.health_monitor = HealthMonitor(timeout_seconds=self.network_cfg.connection_timeout)
         self.battery_monitor = BatteryMonitor()
         
         self.command_handler = CommandHandler(

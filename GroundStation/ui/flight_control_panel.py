@@ -81,8 +81,30 @@ class FlightControlPanel(QWidget):
         self.txt_log.setMaximumHeight(80)
         self.txt_log.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.txt_log.setStyleSheet("background-color: #111; color: #0f0; font-family: monospace;")
-        ctrl_layout.addWidget(self.lbl_cmd_log, 4, 0, 1, 2)
-        ctrl_layout.addWidget(self.txt_log, 5, 0, 1, 2)
+        
+        # Flight Mode Selector
+        mode_box = QGroupBox("Flight Mode")
+        mode_layout = QGridLayout(mode_box)
+        
+        mode_layout.addWidget(QLabel("Mode:"), 0, 0)
+        
+        self.combo_mode = QComboBox()
+        self.combo_mode.addItems(["STABILIZE", "GUIDED", "GUIDED_NOGPS", "LOITER", "RTL", "LAND"])
+        self.combo_mode.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        mode_layout.addWidget(self.combo_mode, 0, 1)
+        
+        btn_set_mode = QPushButton("SET MODE")
+        btn_set_mode.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        btn_set_mode.clicked.connect(self._on_set_mode)
+        mode_layout.addWidget(btn_set_mode, 0, 2)
+        
+        self.lbl_current_mode = QLabel("Current Mode: UNKNOWN")
+        self.lbl_current_mode.setStyleSheet("font-weight: bold;")
+        mode_layout.addWidget(self.lbl_current_mode, 1, 0, 1, 3)
+        
+        ctrl_layout.addWidget(mode_box, 4, 0, 1, 2)
+        ctrl_layout.addWidget(self.lbl_cmd_log, 5, 0, 1, 2)
+        ctrl_layout.addWidget(self.txt_log, 6, 0, 1, 2)
         
         left_layout.addWidget(ctrl_box)
         
@@ -179,6 +201,15 @@ class FlightControlPanel(QWidget):
         tel_box = QGroupBox("Live Flight Status")
         tel_layout = QVBoxLayout(tel_box)
         self.telemetry_panel = TelemetryPanel()
+        
+        # Patch to read mode dynamically without modifying main_window
+        orig_update = self.telemetry_panel.update_telemetry
+        def intercept_telemetry(t_data):
+            orig_update(t_data)
+            mode_str = t_data.flight_mode if t_data.flight_mode else "UNKNOWN"
+            self.lbl_current_mode.setText(f"Current Mode: {mode_str.upper()}")
+        self.telemetry_panel.update_telemetry = intercept_telemetry
+        
         tel_layout.addWidget(self.telemetry_panel)
         right_layout.addWidget(tel_box)
         
@@ -233,6 +264,33 @@ class FlightControlPanel(QWidget):
         alt_str = self.combo_takeoff_alt.currentText().replace(" m", "")
         params = {"altitude_m": float(alt_str)}
         self.send_action(CommandAction.TAKEOFF, params=params)
+
+    def _on_set_mode(self):
+        target = self.get_active_drone()
+        if not target or target == "ALL":
+            # The requirement is "send a targeted SET_MODE command to ONLY the selected drone. Do not send to all drones unless ALL is explicitly selected"
+            if target != "ALL":
+                self._append_log("Error: Select a specific drone to set mode.")
+                return
+                
+        mode = self.combo_mode.currentText()
+        t_str = target if target and target != "ALL" else "ALL"
+        self._append_log(f"Mode command sent to {t_str}: {mode}")
+        
+        import asyncio
+        async def _dispatch():
+            await self.network.send_command(None if target=="ALL" else target, CommandAction.SET_MODE, params={"mode": mode})
+            
+        if not hasattr(self, '_active_tasks'):
+            self._active_tasks = set()
+            
+        try:
+            task = asyncio.create_task(_dispatch())
+            self._active_tasks.add(task)
+            task.add_done_callback(self._active_tasks.discard)
+        except RuntimeError:
+            pass
+        self.setFocus()
 
     def send_action(self, action: CommandAction, params=None):
         import asyncio
