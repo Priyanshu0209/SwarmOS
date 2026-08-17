@@ -68,16 +68,30 @@ class LocalDecisionEngine:
                 peer_telemetry[peer_id] = state.telemetry
                 
         # 2. Evaluate Collision Threats (Highest Priority)
-        threat_detected, correction = self.ca.evaluate_threats(
+        state, correction, threat_peer, dist = self.ca.evaluate_threats(
             current_telemetry, 
             peer_telemetry
         )
         
-        if threat_detected and correction:
-            logger.warning("Decentralized decision: Collision threat detected. Enacting evasive maneuver.")
-            # Preempt mission navigation to enact evasion
-            await self.nav.flight_manager.move(correction)
-            return
+        if state != "NORMAL":
+            import time
+            mode = current_telemetry.flight_mode or "UNKNOWN"
+            log_str = (
+                f"SAFETY INTERVENTION | state: {state} | "
+                f"own_id: {self.swarm.identity.drone_id} | neighbor_id: {threat_peer} | "
+                f"dist: {dist:.2f}m | mode: {mode} | ts: {time.time()} | reason: Minimum separation breached"
+            )
+            if state == "WARNING":
+                logger.warning(log_str + " | action: NONE (Logging)")
+            elif state == "AVOIDANCE":
+                logger.warning(log_str + " | action: EVASIVE_MOVE")
+                if correction:
+                    await self.nav.flight_manager.move(correction)
+                return
+            elif state == "EMERGENCY":
+                logger.critical(log_str + " | action: EMERGENCY_HOVER")
+                await self.nav.flight_manager.hover()
+                return
 
         # 3. Proceed with Mission Execution
         mission_state = self.mission.get_current_state()

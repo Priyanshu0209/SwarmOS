@@ -112,10 +112,8 @@ class PX4FlightController(IFlightController):
             return True
         except Exception as e:
             if "ActionError" in str(type(e)):
-                logger.error(f"Pixhawk rejected ARM request; check Pixhawk pre-arm checks. Details: {e}")
-            else:
-                logger.exception(f"PX4 Arm failed: {e}")
-            return False
+                raise RuntimeError(f"Pixhawk rejected ARM request: {e}")
+            raise RuntimeError(f"PX4 Arm failed: {e}")
 
     async def disarm(self) -> bool:
         if not self._connected: return False
@@ -134,10 +132,8 @@ class PX4FlightController(IFlightController):
             return True
         except Exception as e:
             if "ActionError" in str(type(e)):
-                logger.error(f"Pixhawk rejected TAKEOFF request. Details: {e}")
-            else:
-                logger.exception(f"PX4 Takeoff failed: {e}")
-            return False
+                raise RuntimeError(f"Pixhawk rejected TAKEOFF request: {e}")
+            raise RuntimeError(f"PX4 Takeoff failed: {e}")
 
     async def land(self) -> bool:
         if not self._connected: return False
@@ -188,6 +184,44 @@ class PX4FlightController(IFlightController):
         except (OSError, RuntimeError) as e:
             logger.exception(f"PX4 Move failed: {e}")
             return False
+
+    async def set_mode(self, mode: str) -> bool:
+        if not self._connected:
+            raise RuntimeError("Not connected")
+        mode_upper = mode.upper()
+        
+        try:
+            if mode_upper == "RTL":
+                await self.client.action.return_to_launch()
+            elif mode_upper == "LAND":
+                await self.client.action.land()
+            elif mode_upper == "LOITER" or mode_upper == "HOLD":
+                await self.client.action.hold()
+            else:
+                if hasattr(self.client.action, 'set_custom_mode'):
+                    try:
+                        await self.client.action.set_custom_mode(mode)
+                    except Exception as e:
+                        if "ActionError" in str(type(e)):
+                            raise RuntimeError(f"Mode {mode} rejected by Pixhawk: {e}")
+                        raise RuntimeError(f"Custom mode {mode} not fully supported by MAVSDK: {e}")
+                else:
+                    raise RuntimeError(f"set_custom_mode not supported in this MAVSDK version to set {mode}")
+            
+            # Verify mode change via telemetry
+            for _ in range(10):
+                await asyncio.sleep(0.1)
+                t = await self.get_telemetry()
+                if t.flight_mode and mode_upper in t.flight_mode.upper():
+                    return True
+                    
+            logger.warning(f"Mode command sent, but telemetry didn't confirm {mode} within 1 second.")
+            return True # Command didn't error, just UI might not show it yet.
+            
+        except Exception as e:
+            if isinstance(e, RuntimeError):
+                raise e
+            raise RuntimeError(f"PX4 Set Mode failed: {e}")
 
     async def get_telemetry(self) -> TelemetryData:
         return self._telemetry

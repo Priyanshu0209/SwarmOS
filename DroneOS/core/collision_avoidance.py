@@ -1,17 +1,20 @@
 import math
+import time
 from abc import ABC, abstractmethod
 from typing import Dict, Tuple, Optional
 from DroneOS.shared.utils.logger import setup_logger
 from DroneOS.shared.protocol.messages import TelemetryData
+from DroneOS.shared.config.models import CollisionAvoidanceConfig
 
 logger = setup_logger("CollisionAvoidance")
 
 class ICollisionAvoidance(ABC):
     @abstractmethod
-    def evaluate_threats(self, self_telemetry: TelemetryData, swarm_telemetry: Dict[str, TelemetryData]) -> Tuple[bool, Optional[Dict[str, float]]]:
+    def evaluate_threats(self, self_telemetry: TelemetryData, swarm_telemetry: Dict[str, TelemetryData]) -> Tuple[str, Optional[Dict[str, float]], Optional[str], float]:
         """
         Evaluates potential collisions based on self telemetry and the swarm telemetry map.
-        Returns (is_threat_detected, corrective_velocity_vector)
+        Returns (safety_state, corrective_velocity_vector, peer_id, distance)
+        safety_state: NORMAL, WARNING, AVOIDANCE, EMERGENCY
         """
         pass
 
@@ -19,36 +22,41 @@ class StandardCollisionAvoidance(ICollisionAvoidance):
     """
     Decentralized collision avoidance logic using Predictive Separation.
     """
-    def __init__(self, minimum_safe_distance: float = 3.0, lookahead_seconds: float = 2.0):
-        self.min_dist = minimum_safe_distance
-        self.lookahead = lookahead_seconds
+    def __init__(self, config: Optional[CollisionAvoidanceConfig] = None):
+        self.config = config or CollisionAvoidanceConfig()
+        self.enabled = self.config.enabled
+        self.min_h_dist = self.config.min_horizontal_distance
+        self.min_v_dist = self.config.min_vertical_distance
+        self.warn_dist = self.config.warning_distance
+        self.emg_dist = self.config.emergency_distance
+        self.timeout = self.config.neighbor_timeout_sec
 
-    def _predict_pos(self, t: TelemetryData, dt: float) -> Tuple[float, float, float]:
-        # Approximate lat/lon to meters is complex, but for local collision avoidance
-        # we can assume 1 deg lat = 111320m, 1 deg lon = 111320 * cos(lat)
-        # But AirSim velocity is in NED meters/sec, not degrees/sec.
-        # So we can't directly add vx to latitude.
-        # For simplicity in this static stub, we'll use a local tangent plane approximation 
-        # but since we only have global coords, let's just project using standard metrics.
-        # Actually, we can just compare velocities if we assume they are in the same frame.
-        lat = t.latitude or 0.0
-        lon = t.longitude or 0.0
-        alt = t.altitude or 0.0
-        
-        # very rough approximation for local metric projection (relative to an origin, but here we just use differences)
-        return (lat, lon, alt)
-
-    def evaluate_threats(self, self_telemetry: TelemetryData, swarm_telemetry: Dict[str, TelemetryData]) -> Tuple[bool, Optional[Dict[str, float]]]:
+    def evaluate_threats(self, self_telemetry: TelemetryData, swarm_telemetry: Dict[str, TelemetryData]) -> Tuple[str, Optional[Dict[str, float]], Optional[str], float]:
+        if not self.enabled:
+            return "NORMAL", None, None, 0.0
+            
         if self_telemetry.latitude is None or self_telemetry.longitude is None:
-            return False, None
+            return "NORMAL", None, None, 0.0
 
         my_lat = self_telemetry.latitude
         my_lon = self_telemetry.longitude
         my_alt = self_telemetry.altitude or 0.0
 
+        worst_state = "NORMAL"
+        best_correction = None
+        threat_peer = None
+        min_dist_found = float('inf')
+
         for peer_id, peer_t in swarm_telemetry.items():
             if peer_t.latitude is None or peer_t.longitude is None:
                 continue
+                
+            # Check staleness
+            if peer_t.timestamp is not None:
+                age = time.time() - peer_t.timestamp
+                if age > self.timeout:
+                    # Ignore stale neighbor state
+                    continue
                 
             # Distance in meters
             R = 6371000
@@ -63,23 +71,37 @@ class StandardCollisionAvoidance(ICollisionAvoidance):
             
             alt_diff = abs(my_alt - (peer_t.altitude or 0.0))
             
-            # Simple Sphere check
-            if dist < self.min_dist and alt_diff < self.min_dist:
-                logger.warning(f"Collision Threat with {peer_id}! Dist: {dist:.2f}m")
+            # Simple check if vertically separated
+            if alt_diff > self.min_v_dist:
+                continue
                 
-                # Simple repel vector (move away from peer)
-                # Calculate bearing to peer, then move opposite
-                bearing = math.atan2(
-                    math.sin(delta_lambda) * math.cos(phi2),
-                    math.cos(phi1) * math.sin(phi2) - math.sin(phi1) * math.cos(phi2) * math.cos(delta_lambda)
-                )
-                # Opposite direction
-                escape_bearing = bearing + math.pi
+            if dist < self.emg_dist:
+                state = "EMERGENCY"
+            elif dist < self.min_h_dist:
+                state = "AVOIDANCE"
+            elif dist < self.warn_dist:
+                state = "WARNING"
+            else:
+                state = "NORMAL"
                 
-                vx = 2.0 * math.cos(escape_bearing)
-                vy = 2.0 * math.sin(escape_bearing)
-                vz = -1.0 # Also climb slightly
-                
-                return True, {"vx": vx, "vy": vy, "vz": vz, "duration": 1.0}
+            if state != "NORMAL":
+                if dist < min_dist_found:
+                    min_dist_found = dist
+                    worst_state = state
+                    threat_peer = peer_id
+                    
+                    if state == "AVOIDANCE":
+                        # Simple repel vector (move away from peer)
+                        bearing = math.atan2(
+                            math.sin(delta_lambda) * math.cos(phi2),
+                            math.cos(phi1) * math.sin(phi2) - math.sin(phi1) * math.cos(phi2) * math.cos(delta_lambda)
+                        )
+                        # Opposite direction
+                        escape_bearing = bearing + math.pi
+                        
+                        vx = 2.0 * math.cos(escape_bearing)
+                        vy = 2.0 * math.sin(escape_bearing)
+                        vz = 0.0 
+                        best_correction = {"vx": vx, "vy": vy, "vz": vz, "duration": 1.0}
 
-        return False, None
+        return worst_state, best_correction, threat_peer, min_dist_found

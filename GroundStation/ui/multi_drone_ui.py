@@ -199,12 +199,41 @@ class SwarmControlPanel(QWidget):
         btn_layout.addWidget(btn_takeoff)
         btn_layout.addWidget(btn_land)
         
+        # Flight Mode Selector
+        from PySide6.QtWidgets import QComboBox
+        mode_layout = QHBoxLayout()
+        mode_layout.addWidget(QLabel("Flight Mode:"))
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems([
+            "STABILIZE",
+            "GUIDED",
+            "GUIDED_NOGPS",
+            "LOITER",
+            "RTL",
+            "LAND"
+        ])
+        btn_set_mode = QPushButton("SET MODE")
+        btn_set_mode.clicked.connect(self._on_set_mode_clicked)
+        mode_layout.addWidget(self.mode_combo)
+        mode_layout.addWidget(btn_set_mode)
+        
         # Assembly
         layout.addWidget(self.selection_mgr)
         layout.addLayout(btn_layout)
+        layout.addLayout(mode_layout)
         layout.addWidget(self.drone_list)
         layout.addWidget(self.status_table)
         self.setLayout(layout)
+
+    def _on_set_mode_clicked(self):
+        selected_mode = self.mode_combo.currentText()
+        targets = self.selection_mgr.get_selected_targets()
+        
+        if not targets:
+            self.broadcast_dispatcher.dispatch(CommandAction.SET_MODE, params={"mode": selected_mode})
+        else:
+            for t in targets:
+                self.individual_dispatcher.dispatch(t, CommandAction.SET_MODE, params={"mode": selected_mode})
 
     def _execute_command(self, action: CommandAction):
         targets = self.selection_mgr.get_selected_targets()

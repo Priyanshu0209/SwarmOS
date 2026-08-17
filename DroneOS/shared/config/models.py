@@ -15,6 +15,14 @@ class NetworkConfig(BaseModel):
     telemetry_interval: float = 0.5
     connection_timeout: float = 10.0
 
+class CollisionAvoidanceConfig(BaseModel):
+    enabled: bool = True
+    min_horizontal_distance: float = 3.0
+    min_vertical_distance: float = 2.0
+    warning_distance: float = 6.0
+    emergency_distance: float = 1.5
+    neighbor_timeout_sec: float = 3.0
+
 class FlightConfig(BaseModel):
     adapter_type: str
     takeoff_altitude: float
@@ -24,6 +32,7 @@ class FlightConfig(BaseModel):
     airsim_port: int
     airsim_timeout: float = 5.0
     airsim_retry_count: int = 3
+    collision_avoidance: Optional[CollisionAvoidanceConfig] = None
 
 class SafetyConfig(BaseModel):
     low_battery_threshold: float = 20.0

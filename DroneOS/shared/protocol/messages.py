@@ -80,6 +80,7 @@ class CommandAction(str, Enum):
     HOVER = "hover"
     MOVE = "move"
     FORMATION_UPDATE = "formation_update"
+    SET_MODE = "set_mode"
 
 class ControlMessage(BaseMessage):
     msg_type: MessageType = MessageType.CONTROL

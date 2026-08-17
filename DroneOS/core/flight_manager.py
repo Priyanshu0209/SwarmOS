@@ -76,3 +76,14 @@ class FlightManager:
         yaw_rate = params.get('yaw_rate', 0.0)
         
         return await self.fc.move_velocity(vx, vy, vz, duration, yaw_rate)
+
+    async def set_mode(self, params: Dict[str, Any]) -> bool:
+        mode = params.get('mode')
+        if not mode:
+            logger.error("Cannot set mode: No mode specified.")
+            return False
+            
+        success = await self.fc.set_mode(mode)
+        if success:
+            logger.info(f"Mode set to {mode} accepted.")
+        return success

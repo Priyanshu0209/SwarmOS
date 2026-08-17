@@ -105,3 +105,13 @@ class IFlightController(ABC):
         Failure Modes: FC disconnected, missing GPS lock. Returns empty TelemetryData on fail.
         """
         pass
+
+    @abstractmethod
+    async def set_mode(self, mode: str) -> bool:
+        """
+        Commands the drone to enter the specified flight mode.
+        Inputs: mode (str) e.g., 'STABILIZE', 'GUIDED', 'RTL'
+        Outputs: True if accepted, False if rejected.
+        Failure Modes: FC rejecting command, mode not supported.
+        """
+        pass

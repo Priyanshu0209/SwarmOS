@@ -101,7 +101,9 @@ class DroneOSApp:
         self.swarm_manager.heartbeat_mgr.timeout_sec = self.network_cfg.connection_timeout
         
         # New Autonomous Subsystems
-        self.collision_avoidance = StandardCollisionAvoidance()
+        self.collision_avoidance = StandardCollisionAvoidance(
+            config=self.flight_cfg.collision_avoidance
+        )
         self.navigation_manager = NavigationManager(self.flight_manager)
         self.mission_manager = MissionManager(
             self.navigation_manager, 
@@ -148,6 +150,7 @@ class DroneOSApp:
         self.command_handler.register_handler(CommandAction.RTL, self.flight_manager.rtl)
         self.command_handler.register_handler(CommandAction.HOVER, self.flight_manager.hover)
         self.command_handler.register_handler(CommandAction.MOVE, self.flight_manager.move)
+        self.command_handler.register_handler(CommandAction.SET_MODE, self.flight_manager.set_mode)
         
         # Register safety callbacks
         self.health_monitor.on_connection_lost = self.safety_module.trigger_connection_lost_failsafe
