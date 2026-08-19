@@ -69,15 +69,14 @@ class CommandHandler:
             task = asyncio.create_task(coro)
             self._active_tasks.add(task)
             task.add_done_callback(self._active_tasks.discard)
-        except RuntimeError:
-            pass
-
+        except Exception as e:
+            logger.error(f"Failed to dispatch task: {e}")
     def register_handler(self, action: CommandAction, handler: Callable[[Dict[str, Any]], Coroutine[Any, Any, bool]]) -> None:
         self._handlers[action] = handler
 
     async def handle_command(self, message: ControlMessage) -> bool:
         if message.action in self._handlers:
-            logger.info(f"Executing command: {message.action.value}")
+            logger.info(f"COMMAND_RX sender={message.sender_id} target={message.target_id} action={message.action.value}")
             
             rejection_reason = await self._validate_safety_gate(message.action)
             if rejection_reason:

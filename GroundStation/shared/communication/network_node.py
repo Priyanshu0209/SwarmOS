@@ -97,7 +97,7 @@ class UdpNetworkAdapter(INetworkAdapter):
             addr = self.known_endpoints[target_id]
             data = self.serializer.serialize(message)
             self.transport.sendto(data, addr)
-            logger.debug(f"Packet sent (Learned Unicast) to {target_id} at {addr[0]}:{addr[1]}")
+            logger.info(f"COMMAND_TX target={target_id} destination={addr[0]}:{addr[1]} bytes={len(data)}")
         else:
             await self.broadcast_message(message)
 

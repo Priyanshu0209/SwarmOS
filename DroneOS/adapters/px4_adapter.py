@@ -74,15 +74,21 @@ class PX4FlightController(IFlightController):
                 
         self._connected = True
         
-        # Request required MAVLink telemetry streams at ~5 Hz
-        try:
-            await self.client.telemetry.set_rate_position(5.0)
-            await self.client.telemetry.set_rate_gps_info(5.0)
-            await self.client.telemetry.set_rate_battery(1.0)
-            await self.client.telemetry.set_rate_attitude(5.0)
-            logger.info("MAVLink stream intervals (GPS, Position, etc.) set successfully at 5Hz.")
-        except Exception as e:
-            logger.warning(f"Failed to set MAVLink telemetry rates: {e}")
+        # Request required MAVLink telemetry streams safely
+        async def safe_set_rate(method_name, rate):
+            if hasattr(self.client.telemetry, method_name):
+                try:
+                    await getattr(self.client.telemetry, method_name)(rate)
+                except Exception as e:
+                    logger.warning(f"Optional telemetry rate {method_name} failed: {e}")
+            else:
+                logger.warning(f"Telemetry API {method_name} not supported by this MAVSDK version.")
+
+        await safe_set_rate('set_rate_position', 5.0)
+        await safe_set_rate('set_rate_gps_info', 5.0)
+        await safe_set_rate('set_rate_battery', 1.0)
+        await safe_set_rate('set_rate_attitude', 5.0)
+        logger.info("MAVLink telemetry rate initialization completed.")
         
         # Start background telemetry subscriptions
         t1 = asyncio.create_task(self._subscribe_position())
@@ -198,18 +204,13 @@ class PX4FlightController(IFlightController):
             elif mode_upper == "LOITER" or mode_upper == "HOLD":
                 await self.client.action.hold()
             else:
-                if hasattr(self.client.action, 'set_custom_mode'):
-                    try:
-                        await self.client.action.set_custom_mode(mode)
-                    except Exception as e:
-                        if "ActionError" in str(type(e)):
-                            raise RuntimeError(f"Mode {mode} rejected by Pixhawk: {e}")
-                        raise RuntimeError(f"Custom mode {mode} not fully supported by MAVSDK: {e}")
-                else:
-                    raise RuntimeError(f"set_custom_mode not supported in this MAVSDK version to set {mode}")
+                # Based on audit, MAVSDK-Python action class in this environment
+                # does NOT expose set_custom_mode. We cannot fake it.
+                raise RuntimeError(f"Mode {mode} is not supported by the current flight-control interface.")
             
             # Verify mode change via telemetry
             for _ in range(10):
+                import asyncio
                 await asyncio.sleep(0.1)
                 t = await self.get_telemetry()
                 if t.flight_mode and mode_upper in t.flight_mode.upper():

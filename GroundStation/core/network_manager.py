@@ -179,7 +179,7 @@ class GSNetworkManager:
         )
         logger.info(f"Sending command {action.value} to {target_id or 'ALL'}")
         self.total_packets_sent += 1
-        await self.network.broadcast_message(msg)
+        await self.network.send_message(target_id, msg)
         
     async def send_mission_message(self, target_id: Optional[str], msg: BaseMessage) -> None:
         """
@@ -193,7 +193,7 @@ class GSNetworkManager:
         
         logger.info(f"Sending mission message {msg.msg_type.value} to {target_id or 'ALL'}")
         self.total_packets_sent += 1
-        await self.network.broadcast_message(msg)
+        await self.network.send_message(target_id, msg)
 
     async def broadcast_heartbeat(self) -> None:
         msg = HeartbeatMessage(
@@ -202,4 +202,10 @@ class GSNetworkManager:
             status="active"
         )
         self.total_packets_sent += 1
+        
+        # Broadcast globally for discovery
         await self.network.broadcast_message(msg)
+        
+        # Explicitly unicast to known drones to ensure reliable heartbeat delivery across subnets/interfaces
+        for drone_id in self.drones.keys():
+            await self.network.send_message(drone_id, msg)

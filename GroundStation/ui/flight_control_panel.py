@@ -275,7 +275,6 @@ class FlightControlPanel(QWidget):
                 
         mode = self.combo_mode.currentText()
         t_str = target if target and target != "ALL" else "ALL"
-        self._append_log(f"Mode command sent to {t_str}: {mode}")
         
         import asyncio
         async def _dispatch():
@@ -285,18 +284,22 @@ class FlightControlPanel(QWidget):
             self._active_tasks = set()
             
         try:
-            task = asyncio.create_task(_dispatch())
+            loop = asyncio.get_event_loop()
+            task = loop.create_task(_dispatch())
             self._active_tasks.add(task)
             task.add_done_callback(self._active_tasks.discard)
-        except RuntimeError:
-            pass
+            
+            # Log ONLY if dispatch scheduling succeeded
+            self._append_log(f"COMMAND_DISPATCH_STARTED: SET_MODE {mode} to {t_str}")
+        except Exception as e:
+            self._append_log(f"COMMAND_DISPATCH_FAILED: SET_MODE - {e}")
+            
         self.setFocus()
 
     def send_action(self, action: CommandAction, params=None):
         import asyncio
         target = self.get_active_drone()
         t_str = target if target and target != "ALL" else "ALL"
-        self._append_log(f"{t_str} -> {action.name} sent")
         
         if target == "ALL" or not target:
             target = None
@@ -308,11 +311,16 @@ class FlightControlPanel(QWidget):
             self._active_tasks = set()
             
         try:
-            task = asyncio.create_task(_dispatch())
+            loop = asyncio.get_event_loop()
+            task = loop.create_task(_dispatch())
             self._active_tasks.add(task)
             task.add_done_callback(self._active_tasks.discard)
-        except RuntimeError:
-            pass
+            
+            # Log ONLY if dispatch scheduling succeeded
+            self._append_log(f"COMMAND_DISPATCH_STARTED: {action.name} to {t_str}")
+        except Exception as e:
+            self._append_log(f"COMMAND_DISPATCH_FAILED: {action.name} - {e}")
+            
         self.setFocus()
 
     def send_emergency(self):
@@ -322,7 +330,6 @@ class FlightControlPanel(QWidget):
         
         target = self.get_active_drone()
         t_str = target if target and target != "ALL" else "ALL"
-        self._append_log(f"{t_str} -> EMERGENCY STOP")
         
         msg = EmergencyMessage(sender_id=self.network.gs_id, timestamp=time.time())
         if target and target != "ALL":
@@ -335,9 +342,14 @@ class FlightControlPanel(QWidget):
             self._active_tasks = set()
             
         try:
-            task = asyncio.create_task(_dispatch())
+            loop = asyncio.get_event_loop()
+            task = loop.create_task(_dispatch())
             self._active_tasks.add(task)
             task.add_done_callback(self._active_tasks.discard)
-        except RuntimeError:
-            pass
+            
+            # Log ONLY if dispatch scheduling succeeded
+            self._append_log(f"COMMAND_DISPATCH_STARTED: EMERGENCY STOP to {t_str}")
+        except Exception as e:
+            self._append_log(f"COMMAND_DISPATCH_FAILED: EMERGENCY STOP - {e}")
+            
         self.setFocus()
