@@ -6,6 +6,12 @@
 
 SwarmOS is an advanced, distributed autonomous drone operating and control software platform built for real-world, multi-agent drone operations. It is designed to bridge the crucial gap between **high-level mission intelligence** (swarm logic, dynamic routing, decision making) and **low-level flight execution** (motor control, real-time stability).
 
+## Screenshots
+
+| Dashboard | Simulation |
+|---|---|
+| ![SwarmOS Dashboard](assets/screenshots/swarmos-dashboard.png) | ![SwarmOS Simulation](assets/screenshots/swarmos-simulation.png) |
+
 By actively decoupling intelligent swarm behaviors from the physical flight controller, SwarmOS introduces a **safety-first, hardware-agnostic architecture**. It leverages native hardware capabilities (such as Pixhawk/PX4) for robust flight stability, while running an asynchronous, high-performance network layer on companion computers (like a Raspberry Pi). This ensures that complex commands and multi-drone coordination logic are safely intercepted, validated, and managed before ever reaching the physical hardware.
 
 ## 2. Core Architecture
