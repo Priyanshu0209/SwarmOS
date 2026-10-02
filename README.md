@@ -12,6 +12,9 @@ By actively decoupling intelligent swarm behaviors from the physical flight cont
 
 SwarmOS utilizes a clear separation of concerns, routing human or autonomous commands through a network layer, into a safety-checked OS environment, and finally to the flight controller.
 
+### Documentation & Manuals
+- [SwarmOS Deployment Manual](assets/documents/swarmos-deployment-manual.pdf)
+
 ```mermaid
 graph TD
     User([Human / Operator]) -->|UI Inputs| GS[Ground Station / DroneAgent]
